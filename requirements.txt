@@ -1,6 +1,6 @@
 # ============================================================
-# CHATBOT IMATCHY
-# Instale com: pip install -r requirements.txt
+# CHATBOT IMATCHY — requirements.txt
+# pip install -r requirements.txt
 # ============================================================
 
 # --- WEB FRAMEWORK ---
@@ -12,15 +12,11 @@ pydantic==2.10.3
 pydantic-settings==2.6.1
 python-multipart==0.0.18
 
-# --- AWS (DynamoDB + S3) ---
-boto3==1.35.99
-botocore==1.35.99
+# --- SUPABASE ---
+supabase==2.10.0
 
 # --- TWILIO (WhatsApp) ---
 twilio==9.4.0
-
-# --- ELEVENLABS (síntese de voz) ---
-elevenlabs==1.9.0
 
 # --- LLM: OPENAI (GPT-4o-mini + Whisper) ---
 openai>=2.26.0
@@ -30,10 +26,6 @@ langchain-openai>=0.3.0
 langgraph==0.2.60
 langchain==0.3.13
 langchain-core==0.3.28
-langchain-anthropic==0.3.0
-
-# --- LANGFUSE (observabilidade) ---
-langfuse==2.57.3
 
 # --- HTTP CLIENT ---
 httpx==0.28.1
@@ -46,5 +38,4 @@ aiofiles==24.1.0
 # --- DESENVOLVIMENTO / TESTES ---
 pytest==8.3.4
 pytest-asyncio==0.24.0
-moto[dynamodb]
 pyngrok
