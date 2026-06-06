@@ -10,3 +10,7 @@ build/
 *.egg-info/
 .DS_Store
 node_modules/
+
+# --- PASTA DE TESTES ---
+zGeral/
+*zGeral/
