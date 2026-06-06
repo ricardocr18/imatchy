@@ -40,6 +40,7 @@ async def upsert_conversation(
     name: str,
     email: str,
     profile: str,
+    language: str = "PT",
 ) -> None:
     _conversations[conversation_id] = {
         "id": conversation_id,
@@ -47,6 +48,7 @@ async def upsert_conversation(
         "name": name,
         "email": email,
         "profile": profile,
+        "language": language,
         "status": "active",
     }
     logger.info(f"[MEM] Conversa criada: {name} | {profile}")
