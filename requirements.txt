@@ -18,17 +18,15 @@ supabase==2.10.0
 # --- TWILIO (WhatsApp) ---
 twilio==9.4.0
 
-# --- LLM: OPENAI (GPT-4o-mini + Whisper) ---
-openai>=2.26.0
-langchain-openai>=0.3.0
-
-# --- LANGGRAPH + LANGCHAIN ---
-langgraph==0.2.60
+# --- LLM: OPENAI + LANGCHAIN (versões compatíveis entre si) ---
+openai>=1.58.1,<2.0.0
+langchain-openai==0.3.2
 langchain==0.3.13
-langchain-core==0.3.28
+langchain-core==0.3.34
+langgraph==0.2.60
 
-# --- HTTP CLIENT ---
-httpx==0.28.1
+# --- HTTP CLIENT (compatível com supabase 2.10.0) ---
+httpx>=0.26,<0.28
 
 # --- UTILITARIOS ---
 python-dotenv==1.0.1
