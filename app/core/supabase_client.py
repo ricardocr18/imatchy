@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 _conversations: dict[str, dict] = {}
 _messages: dict[str, list] = {}
 _pdfs: dict[str, list] = {}
+_invalid_attempts: dict[str, int] = {}  # contador de tentativas inválidas por conversa
 
 
 async def save_message(conversation_id: str, role: str, content: str) -> None:
@@ -52,9 +53,9 @@ async def upsert_conversation(
 
 
 async def close_conversation(conversation_id: str) -> None:
-    if conversation_id in _conversations:
-        _conversations[conversation_id]["status"] = "closed"
-    logger.info(f"[MEM] Conversa encerrada: {conversation_id}")
+    # MODO TESTE: não encerra a conversa para permitir novos testes no mesmo número
+    logger.info(f"[TESTE] Encerramento ignorado para: {conversation_id}")
+    pass
 
 
 def get_supabase():

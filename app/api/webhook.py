@@ -26,6 +26,16 @@ router = APIRouter()
 settings = get_settings()
 twilio_client = TwilioClient(settings.twilio_account_sid, settings.twilio_auth_token)
 
+# Frases que indicam que o agente já abriu a janela de envio de PDF
+_PDF_TRIGGERS = [
+    "enviar agora aqui um arquivo",
+    "pode enviar um arquivo do tipo pdf",
+    "pode enviar aqui agora um arquivo",
+    "pode enviar aqui um arquivo",
+    "enviar aqui um arquivo do tipo pdf",
+    "enviar um arquivo do tipo pdf",
+]
+
 
 def _make_conversation_id(phone: str) -> str:
     return hashlib.sha256(phone.encode()).hexdigest()[:24]
@@ -54,6 +64,14 @@ def _send_whatsapp(to: str, body: str) -> None:
     )
 
 
+def _is_awaiting_pdf(history: list[dict]) -> bool:
+    return any(
+        any(trigger in m.get("content", "").lower() for trigger in _PDF_TRIGGERS)
+        for m in history
+        if m.get("role") == "assistant"
+    )
+
+
 @router.post("/webhook/whatsapp")
 async def whatsapp_webhook(
     request: Request,
@@ -71,7 +89,17 @@ async def whatsapp_webhook(
     is_first_message = len(history) == 0
     user_meta = {"nome": "", "email": "", "telefone": phone, "perfil": ""}
 
-    if is_first_message:
+    # Detecta se é uma mensagem de início de formulário (mesmo que já exista histórico)
+    is_form_start = Body.strip().lower().startswith("oi imatchy, sou ")
+
+    if is_first_message or is_form_start:
+        # Limpa histórico anterior para permitir novo teste no mesmo número
+        if is_form_start and not is_first_message:
+            from app.core.supabase_client import _messages, _invalid_attempts
+            _messages[conversation_id] = []
+            _invalid_attempts[conversation_id] = 0
+            history = []
+            logger.info(f"[TESTE] Histórico e contadores resetados para {conversation_id}")
         user_meta = _parse_initial_message(Body)
         user_meta["telefone"] = user_meta.get("telefone") or phone
         await upsert_conversation(
@@ -89,16 +117,11 @@ async def whatsapp_webhook(
         user_meta["email"] = conv.get("email", "")
         user_meta["perfil"] = conv.get("profile", "")
 
-    # ── 2. Verifica se agente já pediu PDF ───────────────────────────────────
-    awaiting_pdf = any(
-        "enviar agora aqui um arquivo" in m.get("content", "").lower()
-        for m in history
-        if m.get("role") == "assistant"
-    )
-
-    # ── 3. Processa mídia ────────────────────────────────────────────────────
+    # ── 2. Verifica estado do PDF ─────────────────────────────────────────────
+    awaiting_pdf = _is_awaiting_pdf(history)
     user_text = Body.strip()
 
+    # ── 3. Processa mídia ─────────────────────────────────────────────────────
     if NumMedia > 0 and MediaUrl0:
         file_bytes, content_type = await download_media(
             MediaUrl0,
@@ -106,22 +129,29 @@ async def whatsapp_webhook(
             settings.twilio_auth_token,
         )
 
-        if not awaiting_pdf:
-            _send_whatsapp(phone, "Obrigado! Por enquanto, vamos continuar nossa conversa 😊")
-            return Response(content="", media_type="text/plain")
-
+        # Áudio → transcreve e trata como texto normal
         if "audio" in content_type.lower() or "ogg" in content_type.lower():
             user_text = await transcribe_audio(
                 MediaUrl0, settings.twilio_account_sid, settings.twilio_auth_token
             )
+
+        # Arquivo enviado antes de ser solicitado → avisa e ignora
+        elif not awaiting_pdf:
+            _send_whatsapp(phone, "Obrigado! Por enquanto, vamos continuar nossa conversa 😊")
+            return Response(content="", media_type="text/plain")
+
+        # Arquivo enviado na hora certa → valida PDF
         else:
             error_msg = validate_pdf(file_bytes, content_type)
             if error_msg:
                 _send_whatsapp(phone, error_msg)
                 return Response(content="", media_type="text/plain")
+
+            # PDF válido → salva e informa o LLM para ele disparar o encerramento
             filename = f"doc_{conversation_id[:8]}.pdf"
             await save_pdf(conversation_id, file_bytes, filename)
-            user_text = f"[PDF enviado: {filename}]"
+            user_text = f"[PDF enviado: {filename}] PDF recebido com sucesso."
+            logger.info(f"PDF salvo para conversa {conversation_id}: {filename}")
 
     elif not user_text:
         return Response(content="", media_type="text/plain")
@@ -143,9 +173,10 @@ async def whatsapp_webhook(
         "email": user_meta["email"],
         "telefone": user_meta["telefone"],
         "perfil": user_meta["perfil"],
+        "conversation_id": conversation_id,
         "is_closed": False,
         "awaiting_pdf": awaiting_pdf,
-        "pdf_received": bool(NumMedia > 0 and awaiting_pdf),
+        "pdf_received": "[PDF enviado:" in user_text,
     }
 
     result = imatchy_graph.invoke(state)
